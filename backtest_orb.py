@@ -115,7 +115,7 @@ def _exit_check(action, sl, tp, lo, hi, atr):
     return False, False, 0.0, ""
 
 
-def run_backtest(df_m5, df_h1, equity0=1000.0, start=None, end=None,
+def run_backtest(df_m5, df_h1, df_h4=None, equity0=1000.0, start=None, end=None,
                  seed=42, commission=3.0):
     if start: df_m5 = df_m5[df_m5.index >= pd.Timestamp(start, tz="UTC")]
     if end:   df_m5 = df_m5[df_m5.index <= pd.Timestamp(end,   tz="UTC")]
@@ -131,6 +131,12 @@ def run_backtest(df_m5, df_h1, equity0=1000.0, start=None, end=None,
     H1_WIN     = 60
     h1_history: List[dict] = []
     prev_h1_close = None
+
+    # H4 history
+    H4_WIN     = 60
+    h4_history: List[dict] = []
+    prev_h4_close = None
+    df_h4_ri   = df_h4.reindex(df_m5.index, method="ffill") if df_h4 is not None else None
 
     trade_dir  = None
     t_entry    = t_sl = t_tp = t_lots = t_spread = t_slip = 0.0
@@ -182,6 +188,16 @@ def run_backtest(df_m5, df_h1, equity0=1000.0, start=None, end=None,
             if len(h1_history) > H1_WIN: h1_history.pop(0)
             prev_h1_close = h1c
 
+        # H4 window
+        if df_h4_ri is not None:
+            h4c = float(df_h4_ri.iloc[i]["close"])
+            if h4c != prev_h4_close:
+                h4r = df_h4_ri.iloc[i]
+                h4_history.append({"close": h4c, "high": float(h4r.get("high",h4c)),
+                                    "low": float(h4r.get("low",h4c)), "atr": float(h4r.get("atr",1.0))})
+                if len(h4_history) > H4_WIN: h4_history.pop(0)
+                prev_h4_close = h4c
+
         # Daily reset (let strategy.on_bar handle its own session reset via _day.date check)
         bd = bt.date()
         if cur_day != bd:
@@ -226,7 +242,9 @@ def run_backtest(df_m5, df_h1, equity0=1000.0, start=None, end=None,
         # Signal
         if trade_dir is None and not day_halted:
             acc = {"equity": equity, "position": 0}
-            sig: Signal = strategy.on_bar(m5, list(h1_history), account=acc)
+            sig: Signal = strategy.on_bar(m5, list(h1_history),
+                                          h4_bars=list(h4_history) if h4_history else None,
+                                          account=acc)
 
             if sig.is_trade:
                 spread = _session_spread(bt.hour, bt.minute, rng)
@@ -375,6 +393,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--m5",    default=os.path.join(_DATA_DIR,"XAUUSD_M5.csv"))
     p.add_argument("--h1",    default=os.path.join(_DATA_DIR,"XAUUSD_H1.csv"))
+    p.add_argument("--h4",    default=os.path.join(_DATA_DIR,"XAUUSD_H4.csv"),
+                   help="H4 CSV for H4 EMA(50) filter (optional, skipped if file missing)")
     p.add_argument("--equity",     type=float, default=1000.0)
     p.add_argument("--start",      default="2020-01-01")
     p.add_argument("--end",        default=None)
@@ -383,7 +403,12 @@ def main():
     args = p.parse_args()
     df_m5 = _load_csv(args.m5, "M5")
     df_h1 = _load_csv(args.h1, "H1")
-    run_backtest(df_m5, df_h1, equity0=args.equity, start=args.start,
+    df_h4 = None
+    if os.path.exists(args.h4):
+        df_h4 = _load_csv(args.h4, "H4")
+    else:
+        logger.info("H4 file not found (%s) — H4 trend filter disabled", args.h4)
+    run_backtest(df_m5, df_h1, df_h4=df_h4, equity0=args.equity, start=args.start,
                  end=args.end, seed=args.seed, commission=args.commission)
 
 if __name__ == "__main__":

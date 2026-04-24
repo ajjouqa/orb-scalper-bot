@@ -177,6 +177,20 @@ def run(data_dir: str, dry_run: bool = False, poll_sec: float = 2.0) -> None:
             for b in h1_raw
         ]
 
+        # Extract H4 bars (optional — EA may or may not send them)
+        h4_raw: List[dict] = data.get("h4_bars", [])
+        h4_bars = [
+            {
+                "time":  bar_ts,
+                "open":  float(b.get("open",  b.get("close", 0))),
+                "high":  float(b.get("high",  b.get("close", 0))),
+                "low":   float(b.get("low",   b.get("close", 0))),
+                "close": float(b.get("close", 0)),
+                "atr":   float(b.get("atr",   1.0)),
+            }
+            for b in h4_raw
+        ] or None
+
         equity   = float(data.get("equity",   10000.0))
         position = int(data.get("position",   0))
 
@@ -193,7 +207,7 @@ def run(data_dir: str, dry_run: bool = False, poll_sec: float = 2.0) -> None:
 
         # Run strategy
         try:
-            sig: Signal = strategy.on_bar(m5_bar, h1_bars, account=account)
+            sig: Signal = strategy.on_bar(m5_bar, h1_bars, h4_bars=h4_bars, account=account)
         except Exception as e:
             logger.error("Strategy error: %s", e, exc_info=True)
             time.sleep(poll_sec)

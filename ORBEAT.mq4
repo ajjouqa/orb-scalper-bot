@@ -9,7 +9,7 @@
 //+------------------------------------------------------------------+
 
 #property copyright "ORB Scalper"
-#property version   "1.00"
+#property version   "2.00"
 #property strict
 
 input int    MagicNumber   = 20250101;
@@ -71,7 +71,7 @@ void WriteData()
    long   m5_v = iVolume(Symbol(), PERIOD_M5, 1);
    double atr  = iATR(Symbol(), PERIOD_M5, 14, 1);
 
-   // Last 6 H1 bars for trend
+   // Last 60 H1 bars for H1 EMA(20)
    string h1_arr = "[";
    for(int i = 60; i >= 1; i--)
      {
@@ -85,6 +85,21 @@ void WriteData()
       h1_arr += "}";
      }
    h1_arr += "]";
+
+   // Last 60 H4 bars for H4 EMA(50)
+   string h4_arr = "[";
+   for(int i = 60; i >= 1; i--)
+     {
+      if(i < 60) h4_arr += ",";
+      h4_arr += "{";
+      h4_arr += "\"open\":"  + DoubleToStr(iOpen (Symbol(), PERIOD_H4, i), 2) + ",";
+      h4_arr += "\"high\":"  + DoubleToStr(iHigh (Symbol(), PERIOD_H4, i), 2) + ",";
+      h4_arr += "\"low\":"   + DoubleToStr(iLow  (Symbol(), PERIOD_H4, i), 2) + ",";
+      h4_arr += "\"close\":" + DoubleToStr(iClose(Symbol(), PERIOD_H4, i), 2) + ",";
+      h4_arr += "\"atr\":"   + DoubleToStr(iATR(Symbol(), PERIOD_H4, 14, i), 5);
+      h4_arr += "}";
+     }
+   h4_arr += "]";
 
    double spread = (Ask - Bid) / Point;
    double equity = AccountEquity();
@@ -118,6 +133,7 @@ void WriteData()
               ",\"atr\":"    + DoubleToStr(atr,5) +
               ",\"spread\":" + DoubleToStr(spread,1) + "},";
    j += "\"h1_bars\":" + h1_arr + ",";
+   j += "\"h4_bars\":" + h4_arr + ",";
    j += "\"equity\":"   + DoubleToStr(equity, 2) + ",";
    j += "\"balance\":"  + DoubleToStr(balance,2) + ",";
    j += "\"position\":" + IntegerToString(pos)    + ",";
